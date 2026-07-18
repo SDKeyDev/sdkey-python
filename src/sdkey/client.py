@@ -56,7 +56,7 @@ def _default_http_post(url: str, body: dict[str, Any]) -> tuple[int, dict[str, A
 class SdkeyClient:
     """SDKey license client.
 
-    Flow: ``init()`` (session handshake) → ``validate(license_key, hwid)`` (sealed request).
+    Flow: ``init()`` (session handshake) → ``validate(license_key, hwid=None)`` (sealed).
     ``validate`` calls ``init`` automatically when no session exists.
     """
 
@@ -65,11 +65,13 @@ class SdkeyClient:
         *,
         api_base_url: str,
         app_id: str,
+        app_version: str,
         app_public_key_b64: str,
         http_post: HttpPost | None = None,
     ) -> None:
         self._api_base_url = api_base_url.rstrip("/")
         self._app_id = app_id
+        self._app_version = app_version
         self._app_public_key_b64 = app_public_key_b64
         self._http_post: HttpPost = http_post or _default_http_post
         self._public_key: Ed25519PublicKey | None = None
@@ -93,13 +95,17 @@ class SdkeyClient:
                 {
                     "appId": self._app_id,
                     "clientNonceB64": bytes_to_base64(client_nonce),
+                    "clientVersion": self._app_version,
                 },
             )
         except Exception as cause:  # noqa: BLE001 — mirror TS catch-all network mapping
             raise SdkeyError("NETWORK", "session init request failed", cause) from cause
 
         if status < 200 or status >= 300 or not body.get("success"):
-            raise SdkeyError("INIT_FAILED", str(body.get("error") or "session init failed"))
+            raise SdkeyError(
+                str(body.get("code") or "INIT_FAILED"),
+                str(body.get("error") or "session init failed"),
+            )
 
         hello = {
             "appId": self._app_id,
@@ -129,7 +135,7 @@ class SdkeyClient:
         )
         return self._session
 
-    def validate(self, license_key: str, hwid: str) -> ValidateResult:
+    def validate(self, license_key: str, hwid: str | None = None) -> ValidateResult:
         if self._session is None or self._public_key is None:
             self.init()
         session = self._session
@@ -137,13 +143,22 @@ class SdkeyClient:
         assert session is not None
         assert public_key is not None
 
-        inner = {
-            "hwid": hwid,
+        inner: dict[str, Any] = {
             "licenseKey": license_key,
             "nonce": bytes_to_base64(os.urandom(VALIDATE_NONCE_BYTES)),
             "timestamp": int(time.time()),
             "v": PROTOCOL_VERSION,
         }
+        if hwid is not None:
+            # Keep lexicographic key order for the sealed inner JSON.
+            inner = {
+                "hwid": hwid,
+                "licenseKey": inner["licenseKey"],
+                "nonce": inner["nonce"],
+                "timestamp": inner["timestamp"],
+                "v": inner["v"],
+            }
+
         sealed = seal_aes_gcm(
             session.aes_key,
             json.dumps(inner, separators=(",", ":")).encode("utf-8"),
@@ -169,7 +184,7 @@ class SdkeyClient:
             if envelope.get("code") == "SESSION_EXPIRED":
                 self.clear_session()
             raise SdkeyError(
-                "VALIDATE_RESPONSE_INVALID",
+                str(envelope.get("code") or "VALIDATE_RESPONSE_INVALID"),
                 str(envelope.get("error") or "invalid validate response"),
             )
 
@@ -194,11 +209,19 @@ class SdkeyClient:
         if plaintext.get("code") == "SESSION_EXPIRED":
             self.clear_session()
 
+        tier_raw = plaintext.get("subscriptionTier")
+        subscription_tier: int | None
+        if tier_raw is None:
+            subscription_tier = None
+        else:
+            subscription_tier = int(tier_raw)
+
         return ValidateResult(
             success=bool(plaintext["success"]),
             code=str(plaintext["code"]),
             message=str(plaintext["message"]),
             status=plaintext.get("status"),
             expires_at=plaintext.get("expiresAt"),
+            subscription_tier=subscription_tier,
             timestamp=int(plaintext["timestamp"]),
         )

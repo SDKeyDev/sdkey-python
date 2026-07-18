@@ -30,6 +30,9 @@ VALIDATE_FAILURE_CODES: Final[tuple[str, ...]] = (
     "HWID_MISMATCH",
     "DECRYPT_FAIL",
     "APP_DISABLED",
+    "APP_OUTDATED",
+    "HWID_BANNED",
+    "IP_BANNED",
 )
 
 ValidateFailureCode = Literal[
@@ -43,4 +46,7 @@ ValidateFailureCode = Literal[
     "HWID_MISMATCH",
     "DECRYPT_FAIL",
     "APP_DISABLED",
+    "APP_OUTDATED",
+    "HWID_BANNED",
+    "IP_BANNED",
 ]

@@ -17,6 +17,7 @@ class SdkeyClientOptions:
 
     api_base_url: str
     app_id: str
+    app_version: str
     app_public_key_b64: str
     http_post: HttpPost | None = None
 
@@ -36,4 +37,5 @@ class ValidateResult:
     message: str
     status: str | None
     expires_at: str | None
+    subscription_tier: int | None
     timestamp: int
