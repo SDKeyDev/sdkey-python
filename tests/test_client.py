@@ -239,3 +239,113 @@ def test_throws_sdkey_error_when_hello_signature_is_wrong() -> None:
         raise AssertionError("expected SdkeyError")
     except SdkeyError as err:
         assert err.code == "HELLO_SIGNATURE_INVALID"
+
+
+def test_register_login_upgrade_plaintext_auth() -> None:
+    _, public_key_b64 = _generate_ed25519_pair()
+    app_version = "1.0.0"
+    captured: list[tuple[str, dict[str, Any]]] = []
+
+    def http_post(url: str, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        captured.append((url, body))
+        if url.endswith("/register"):
+            return 201, {
+                "success": True,
+                "sessionToken": "tok-reg",
+                "expiresAt": "2026-01-01T00:00:00.000Z",
+                "user": {
+                    "id": "u1",
+                    "username": "player1",
+                    "email": "a@example.com",
+                    "applicationId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                },
+                "license": {
+                    "id": "l1",
+                    "status": "active",
+                    "expiresAt": None,
+                    "subscriptionTier": 1,
+                },
+                "session": {"ip": "203.0.113.1", "hwid": "hw-1"},
+            }
+        if url.endswith("/login"):
+            return 200, {
+                "success": True,
+                "sessionToken": "tok-login",
+                "expiresAt": "2026-01-01T00:00:00.000Z",
+                "user": {
+                    "id": "u1",
+                    "username": "player1",
+                    "email": None,
+                    "applicationId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                },
+                "license": None,
+                "session": {"ip": "203.0.113.1", "hwid": None},
+            }
+        if url.endswith("/upgrade"):
+            assert "password" not in body
+            return 200, {
+                "success": True,
+                "sessionToken": "tok-up",
+                "expiresAt": "2026-01-01T00:00:00.000Z",
+                "user": {
+                    "id": "u1",
+                    "username": "player1",
+                    "email": None,
+                    "applicationId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                },
+                "license": {
+                    "id": "l2",
+                    "status": "active",
+                    "expiresAt": None,
+                    "subscriptionTier": 3,
+                },
+                "session": {"ip": "203.0.113.1", "hwid": "hw-2"},
+            }
+        return 404, {"success": False, "error": "not found", "code": "UNKNOWN"}
+
+    client = _make_client(public_key_b64, http_post, app_version=app_version)
+
+    reg = client.register(
+        username="player1",
+        password="password1",
+        email="a@example.com",
+        license_key="SDKY-AAAA",
+        hwid="hw-1",
+    )
+    assert reg.success is True
+    assert reg.session_token == "tok-reg"
+    assert reg.user is not None and reg.user.username == "player1"
+    assert reg.license is not None and reg.license.subscription_tier == 1
+    assert reg.session is not None and reg.session.hwid == "hw-1"
+    assert captured[0][1]["clientVersion"] == app_version
+    assert captured[0][1]["licenseKey"] == "SDKY-AAAA"
+
+    login = client.login(username="player1", password="password1")
+    assert login.success is True
+    assert login.session_token == "tok-login"
+    assert login.license is None
+    assert "hwid" not in captured[1][1]
+
+    up = client.upgrade(username="player1", license_key="SDKY-BBBB", hwid="hw-2")
+    assert up.success is True
+    assert up.license is not None and up.license.subscription_tier == 3
+    assert "password" not in captured[2][1]
+    assert captured[2][1]["licenseKey"] == "SDKY-BBBB"
+
+
+def test_auth_failure_exposes_server_error_and_code() -> None:
+    _, public_key_b64 = _generate_ed25519_pair()
+
+    def http_post(_url: str, _body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        return 403, {
+            "success": False,
+            "error": "License tier must be higher than the current tier",
+            "code": "TIER_NOT_HIGHER",
+        }
+
+    client = _make_client(public_key_b64, http_post)
+    result = client.upgrade(username="player1", license_key="SDKY-LOW")
+    assert result.success is False
+    assert result.code == "TIER_NOT_HIGHER"
+    assert result.error == "License tier must be higher than the current tier"
+    assert result.session_token is None

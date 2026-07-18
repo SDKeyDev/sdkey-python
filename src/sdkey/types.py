@@ -39,3 +39,39 @@ class ValidateResult:
     expires_at: str | None
     subscription_tier: int | None
     timestamp: int
+
+
+@dataclass(frozen=True)
+class ClientAuthUser:
+    id: str
+    username: str
+    email: str | None
+    application_id: str
+
+
+@dataclass(frozen=True)
+class ClientAuthLicense:
+    id: str
+    status: str
+    expires_at: str | None
+    subscription_tier: int
+
+
+@dataclass(frozen=True)
+class ClientAuthSessionInfo:
+    ip: str
+    hwid: str | None
+
+
+@dataclass(frozen=True)
+class ClientAuthResult:
+    """Result of register / login / upgrade (plaintext client auth)."""
+
+    success: bool
+    code: str | None = None
+    error: str | None = None
+    session_token: str | None = None
+    expires_at: str | None = None
+    user: ClientAuthUser | None = None
+    license: ClientAuthLicense | None = None
+    session: ClientAuthSessionInfo | None = None

@@ -24,7 +24,15 @@ from sdkey.crypto.seal import (
     verify_signature,
 )
 from sdkey.errors import SdkeyError, SdkeyErrorCode
-from sdkey.types import SdkeyClientOptions, SessionState, ValidateResult
+from sdkey.types import (
+    ClientAuthLicense,
+    ClientAuthResult,
+    ClientAuthSessionInfo,
+    ClientAuthUser,
+    SdkeyClientOptions,
+    SessionState,
+    ValidateResult,
+)
 
 __all__ = [
     "AES_GCM_IV_BYTES",
@@ -36,6 +44,10 @@ __all__ = [
     "SESSION_HKDF_INFO_PREFIX",
     "VALIDATE_FAILURE_CODES",
     "VALIDATE_NONCE_BYTES",
+    "ClientAuthLicense",
+    "ClientAuthResult",
+    "ClientAuthSessionInfo",
+    "ClientAuthUser",
     "SealedEnvelope",
     "SdkeyClient",
     "SdkeyClientOptions",
