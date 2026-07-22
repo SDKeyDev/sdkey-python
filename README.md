@@ -42,6 +42,19 @@ except SdkeyError as err:
 
 `validate` calls `init()` automatically when no session exists. Sessions last ~15 minutes server-side; on `SESSION_EXPIRED` the client clears local state so the next call re-handshakes.
 
+### Hardware ID (desktop)
+
+Use `get_hardware_id()` on desktop apps to bind a license to the machine. It is **opt-in** — pass the result explicitly; the client never auto-injects HWID.
+
+```python
+from sdkey import SdkeyClient, get_hardware_id
+
+client = SdkeyClient(...)
+result = client.validate("SDKY-XXXX-XXXX-XXXX-XXXX", get_hardware_id())
+```
+
+`get_hardware_id()` reads a stable OS machine identifier (Windows `MachineGuid`, Linux `/etc/machine-id`, macOS `IOPlatformUUID`), then returns the lowercase SHA-256 hex digest. On unsupported platforms or missing IDs it raises `SdkeyError` with code `HWID_UNAVAILABLE` — it does not invent a random ID. Omit `hwid` for web clients.
+
 ### Client auth (plaintext JSON)
 
 ```python
@@ -139,12 +152,13 @@ Per-app `responseMessages` may customize many strings. The SDK surfaces whatever
 - `validate(license_key, hwid=None)` — sealed validate; omits `hwid` JSON key when not provided; **always** decrypts then verifies the Ed25519 signature before trusting `success`
 - `register(...)` / `login(...)` / `upgrade(...)` — plaintext `POST /api/v1/client/*`
 - `get_session()` / `clear_session()` — inspect or drop the local session
+- `get_hardware_id()` — package-level helper; SHA-256 hex of a stable OS machine ID (desktop opt-in)
 
 ### Errors
 
 Protocol / transport failures raise `SdkeyError` with a `code` and `message` (server `error` text when the API provides one):
 
-`INIT_FAILED` · `APP_OUTDATED` · `HELLO_SIGNATURE_INVALID` · `VALIDATE_RESPONSE_INVALID` · `RESPONSE_SIGNATURE_INVALID` · `SESSION_MISMATCH` · `CLOCK_SKEW` · `NETWORK`
+`INIT_FAILED` · `APP_OUTDATED` · `HELLO_SIGNATURE_INVALID` · `VALIDATE_RESPONSE_INVALID` · `RESPONSE_SIGNATURE_INVALID` · `SESSION_MISMATCH` · `CLOCK_SKEW` · `NETWORK` · `HWID_UNAVAILABLE`
 
 License denials (banned, HWID mismatch, etc.) return a normal `ValidateResult` with `success=False` — they are not raised. Auth denials return `ClientAuthResult(success=False, code=..., error=...)`.
 

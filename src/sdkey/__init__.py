@@ -24,6 +24,7 @@ from sdkey.crypto.seal import (
     verify_signature,
 )
 from sdkey.errors import SdkeyError, SdkeyErrorCode
+from sdkey.hwid import get_hardware_id
 from sdkey.types import (
     ClientAuthLicense,
     ClientAuthResult,
@@ -61,10 +62,11 @@ __all__ = [
     "canonical_json",
     "canonicalize",
     "derive_session_aes_key",
+    "get_hardware_id",
     "import_public_key",
     "open_aes_gcm",
     "seal_aes_gcm",
     "verify_signature",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

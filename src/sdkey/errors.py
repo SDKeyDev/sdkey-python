@@ -14,6 +14,7 @@ SdkeyErrorCode = Literal[
     "SESSION_MISMATCH",
     "CLOCK_SKEW",
     "NETWORK",
+    "HWID_UNAVAILABLE",
     "UNKNOWN",
 ]
 
